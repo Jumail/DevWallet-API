@@ -1,0 +1,266 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String @id @default(uuid())
+  email      String @unique
+  password   String
+  first_name String
+  last_name  String
+  phone      String @unique
+
+  phone_verified Boolean @default(false)
+  email_verified Boolean @default(false)
+
+  country    Country? @relation(fields: [country_id], references: [id])
+  country_id Int
+
+  wallet   Wallet?
+  walletId String?
+
+  address    Address? @relation(fields: [address_id], references: [id])
+  address_id String?
+
+  appeals          Appeal[]
+  carts            Cart[]
+  created_products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Address {
+  id     String  @id @default(uuid())
+  city   String
+  line_1 String
+  line_2 String
+  zip    String
+  state  String?
+
+  country    Country    @relation(fields: [country_id], references: [id])
+  country_id Int
+  user       User[]
+  Business   Business[]
+  cart       Cart[]
+}
+
+model Country {
+  id       Int        @id @default(autoincrement())
+  name     String     @unique
+  code     String     @unique
+  timezone String
+  gst      Float?
+  user     User[]
+  address  Address[]
+  currency Currency[]
+  Business Business[]
+}
+
+model Currency {
+  id           Int           @id @default(autoincrement())
+  name         String        @unique
+  symbol       String        @unique
+  country      Country?      @relation(fields: [country_id], references: [id])
+  country_id   Int
+  accounts     Account[]
+  transactions Transaction[]
+}
+
+model Wallet {
+  id                 String @id @default(uuid())
+  stripe_customer_id String
+
+  user     User      @relation(fields: [user_id], references: [id])
+  user_id  String    @unique
+  accounts Account[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model Account {
+  id      String @id @default(uuid())
+  name    String
+  balance Float  @default(0)
+
+  currency    Currency @relation(fields: [currency_id], references: [id])
+  currency_id Int
+  wallet      Wallet   @relation(fields: [wallet_id], references: [id])
+  wallet_id   String
+
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+  sent_from     Transaction[] @relation("sent_from")
+  recieved_from Transaction[] @relation("recieved_from")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model Transaction {
+  id      String            @id @default(uuid())
+  amount  Float
+  status  TransactionStatus @default(PENDING)
+  remarks String?
+
+  currency                 Currency @relation(fields: [currency_id], references: [id])
+  currency_id              Int
+  sent_from                Account  @relation(name: "sent_from", fields: [sent_from_account_id], references: [id])
+  sent_from_account_id     String
+  recieved_from            Account  @relation(name: "recieved_from", fields: [recieved_from_account_id], references: [id])
+  recieved_from_account_id String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Appeal    Appeal[]
+}
+
+enum AppealStatus {
+  PENDING
+  SUCCESS
+  REJECTED
+}
+
+model Appeal {
+  id           String        @id @default(uuid())
+  message      String
+  status       AppealStatus  @default(PENDING)
+  transactions Transaction[]
+
+  created_by    User   @relation(fields: [created_by_id], references: [id])
+  created_by_id String
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  transactionId String?
+}
+
+// Business section
+model Business {
+  id              String          @id @default(uuid())
+  name            String
+  bio             String
+  phone           String
+  email           String
+  country         Country         @relation(fields: [countryId], references: [id])
+  products        Product[]
+  payment_methods PaymentMethod[]
+
+  address   Address @relation(fields: [addressId], references: [id])
+  addressId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  countryId Int
+}
+
+model Product {
+  id          String  @id @default(uuid())
+  name        String
+  description String
+  discount    Float?
+  price       Float
+  image       String?
+  sku         String?
+  upc         String?
+  stock       Int     @default(0)
+  gst_number  String?
+
+  created_by         User   @relation(fields: [created_by_user_id], references: [id])
+  created_by_user_id String
+
+  business   Business @relation(fields: [businessId], references: [id])
+  businessId String
+
+  supplier  Supplier[]
+  purchases CartProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Supplier {
+  id                      String         @id @default(uuid())
+  name                    String
+  phone                   String
+  email                   String
+  default_shipping_method ShippingMethod @default(COURIER)
+  products                Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum CartStatus {
+  PENDING
+  SUCCESS
+  REJECTED
+}
+
+enum ShippingMethod {
+  COURIER
+  PICKUP
+}
+
+model PaymentMethod {
+  id   String @id @default(uuid())
+  name String
+
+  cart     Cart[]
+  Business Business[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Cart {
+  id              String         @id @default(uuid())
+  status          CartStatus
+  note            String?
+  shipping_method ShippingMethod
+  shipping_cost   Float?
+  tax_amount      Float?
+  total_price     Float
+
+  payment_method    PaymentMethod @relation(fields: [payment_method_id], references: [id])
+  payment_method_id String
+
+  address    Address @relation(fields: [address_id], references: [id])
+  address_id String
+
+  customer    User   @relation(fields: [customer_id], references: [id])
+  customer_id String
+
+  products CartProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CartProduct {
+  id String @id @default(uuid())
+
+  product    Product @relation(fields: [product_id], references: [id])
+  product_id String
+
+  cart    Cart   @relation(fields: [cart_id], references: [id])
+  cart_id String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
